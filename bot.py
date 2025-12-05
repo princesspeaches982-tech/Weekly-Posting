@@ -6,7 +6,21 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
-from Keep_Alive import keep_alive  # Replit keep-alive
+from dotenv import load_dotenv  # for .env support
+
+
+# ======================================================
+# LOAD TOKEN (ENV or .env)
+# ======================================================
+load_dotenv()  # loads DISCORD_BOT_TOKEN from .env if present
+
+
+def load_token() -> str:
+    token = os.getenv("DISCORD_BOT_TOKEN")
+    if not token:
+        print("❌ ERROR: DISCORD_BOT_TOKEN not set in environment or .env file.")
+        raise SystemExit
+    return token
 
 
 # ======================================================
@@ -43,17 +57,6 @@ def safe_text_channel(channel: discord.abc.GuildChannel) -> discord.TextChannel:
     if not isinstance(channel, discord.TextChannel):
         raise ValueError("You must choose a standard text channel.")
     return channel
-
-
-# ======================================================
-# TOKEN LOADER
-# ======================================================
-def load_token() -> str:
-    token = os.environ.get("DISCORD_BOT_TOKEN")
-    if not token:
-        print("❌ ERROR: DISCORD_BOT_TOKEN missing in Replit Secrets!")
-        raise SystemExit
-    return token
 
 
 # ======================================================
@@ -125,12 +128,10 @@ def ensure_guild(guild_id: int) -> None:
         if isinstance(val, int):
             fixed_sched[day] = [val]
         elif isinstance(val, list):
-            # keep only ints
             cleaned = [int(x) for x in val if isinstance(x, int)]
             if cleaned:
                 fixed_sched[day] = cleaned
         else:
-            # ignore weird stuff
             continue
     g["schedule"] = fixed_sched
 
@@ -162,43 +163,27 @@ async def addmessage(interaction: discord.Interaction, message_id: int, text: st
     data[str(gid)]["messages"][str(message_id)] = text
     save_data(data)
 
-    await interaction.response.send_message(
-        f"✔ Message {message_id} saved.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✔ Message {message_id} saved.", ephemeral=True)
 
 
 @tree.command(name="addmessagefile", description="Upload a .txt file as a message")
-async def addmessagefile(
-    interaction: discord.Interaction,
-    message_id: int,
-    file: discord.Attachment
-):
+async def addmessagefile(interaction: discord.Interaction, message_id: int, file: discord.Attachment):
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
 
     if not file.filename.endswith(".txt"):
-        return await interaction.response.send_message(
-            "❌ Only .txt files allowed.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Only .txt files allowed.", ephemeral=True)
 
     content_bytes = await file.read()
     try:
         content = content_bytes.decode("utf-8")
     except UnicodeDecodeError:
-        return await interaction.response.send_message(
-            "❌ Could not decode file as UTF-8 text.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Could not decode file as UTF-8 text.", ephemeral=True)
 
     data[str(gid)]["messages"][str(message_id)] = content
     save_data(data)
 
-    await interaction.response.send_message(
-        f"📁 File saved as message {message_id}.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"📁 File saved as message {message_id}.", ephemeral=True)
 
 
 # Popup modal
@@ -215,10 +200,7 @@ class AddMessageModal(discord.ui.Modal, title="Add Multi-Line Message"):
         data[str(gid)]["messages"][new_id] = str(self.text)
         save_data(data)
 
-        await interaction.response.send_message(
-            f"✔ Saved as message {new_id}.",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"✔ Saved as message {new_id}.", ephemeral=True)
 
 
 @tree.command(name="addmessagepopup", description="Add a multiline message using a popup")
@@ -230,28 +212,17 @@ async def addmessagepopup(interaction: discord.Interaction):
 # EDIT / REMOVE MESSAGE
 # ======================================================
 @tree.command(name="editmessage", description="Edit a saved message")
-async def editmessage(
-    interaction: discord.Interaction,
-    message_id: int,
-    new_text: str
-):
+async def editmessage(interaction: discord.Interaction, message_id: int, new_text: str):
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
 
-    guild_data = data[str(gid)]
-    if str(message_id) not in guild_data["messages"]:
-        return await interaction.response.send_message(
-            "❌ Message not found.",
-            ephemeral=True
-        )
+    if str(message_id) not in data[str(gid)]["messages"]:
+        return await interaction.response.send_message("❌ Message not found.", ephemeral=True)
 
-    guild_data["messages"][str(message_id)] = new_text
+    data[str(gid)]["messages"][str(message_id)] = new_text
     save_data(data)
 
-    await interaction.response.send_message(
-        f"✏ Updated message {message_id}.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✏ Updated message {message_id}.", ephemeral=True)
 
 
 @tree.command(name="removemessage", description="Delete a saved message")
@@ -259,20 +230,13 @@ async def removemessage(interaction: discord.Interaction, message_id: int):
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
 
-    guild_data = data[str(gid)]
-    if str(message_id) not in guild_data["messages"]:
-        return await interaction.response.send_message(
-            "❌ Message not found.",
-            ephemeral=True
-        )
+    if str(message_id) not in data[str(gid)]["messages"]:
+        return await interaction.response.send_message("❌ Message not found.", ephemeral=True)
 
-    del guild_data["messages"][str(message_id)]
+    del data[str(gid)]["messages"][str(message_id)]
     save_data(data)
 
-    await interaction.response.send_message(
-        f"🗑 Message {message_id} deleted.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"🗑 Message {message_id} deleted.", ephemeral=True)
 
 
 # ======================================================
@@ -283,20 +247,13 @@ async def viewmessage(interaction: discord.Interaction, message_id: int):
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
 
-    guild_data = data[str(gid)]
-    msg = guild_data["messages"].get(str(message_id))
+    msg = data[str(gid)]["messages"].get(str(message_id))
     if not msg:
-        return await interaction.response.send_message(
-            "❌ Message not found.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Message not found.", ephemeral=True)
 
     parts = split_message(msg)
 
-    await interaction.response.send_message(
-        f"📄 **Message {message_id}:**",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"📄 **Message {message_id}:**", ephemeral=True)
     for p in parts:
         await interaction.followup.send(p, ephemeral=True)
 
@@ -308,10 +265,7 @@ async def viewmessages(interaction: discord.Interaction):
 
     msgs = data[str(gid)]["messages"]
     if not msgs:
-        return await interaction.response.send_message(
-            "No saved messages.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("No saved messages.", ephemeral=True)
 
     desc_lines = []
     for mid, txt in msgs.items():
@@ -330,27 +284,16 @@ async def viewmessages(interaction: discord.Interaction):
 # ADVANCED SCHEDULER (MULTI-MESSAGE PER DAY)
 # ======================================================
 @tree.command(name="schedule", description="Add a message to a day's schedule (append)")
-async def schedule(
-    interaction: discord.Interaction,
-    day: str,
-    message_id: int
-):
+async def schedule(interaction: discord.Interaction, day: str, message_id: int):
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
 
     if day not in VALID_DAYS:
-        return await interaction.response.send_message(
-            "❌ Invalid day. Use Monday, Tuesday, etc.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Invalid day. Use Monday, Tuesday, etc.", ephemeral=True)
 
     guild_data = data[str(gid)]
-    messages = guild_data["messages"]
-    if str(message_id) not in messages:
-        return await interaction.response.send_message(
-            "❌ Message ID does not exist.",
-            ephemeral=True
-        )
+    if str(message_id) not in guild_data["messages"]:
+        return await interaction.response.send_message("❌ Message ID does not exist.", ephemeral=True)
 
     schedule_data: Dict[str, List[int]] = guild_data["schedule"]
     current = schedule_data.get(day, [])
@@ -370,10 +313,7 @@ async def schedulelist(interaction: discord.Interaction, day: str):
     ensure_guild(gid)
 
     if day not in VALID_DAYS:
-        return await interaction.response.send_message(
-            "❌ Invalid day.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Invalid day.", ephemeral=True)
 
     guild_data = data[str(gid)]
     schedule_data: Dict[str, List[int]] = guild_data["schedule"]
@@ -399,19 +339,12 @@ async def schedulelist(interaction: discord.Interaction, day: str):
 
 
 @tree.command(name="scheduleremove", description="Remove a message by index from a day's schedule")
-async def scheduleremove(
-    interaction: discord.Interaction,
-    day: str,
-    index: int
-):
+async def scheduleremove(interaction: discord.Interaction, day: str, index: int):
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
 
     if day not in VALID_DAYS:
-        return await interaction.response.send_message(
-            "❌ Invalid day.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Invalid day.", ephemeral=True)
 
     guild_data = data[str(gid)]
     schedule_data: Dict[str, List[int]] = guild_data["schedule"]
@@ -433,7 +366,6 @@ async def scheduleremove(
     if queue:
         schedule_data[day] = queue
     else:
-        # if empty, remove the day entirely
         del schedule_data[day]
 
     save_data(data)
@@ -455,10 +387,7 @@ async def schedulemove(
     ensure_guild(gid)
 
     if day not in VALID_DAYS:
-        return await interaction.response.send_message(
-            "❌ Invalid day.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Invalid day.", ephemeral=True)
 
     guild_data = data[str(gid)]
     schedule_data: Dict[str, List[int]] = guild_data["schedule"]
@@ -494,10 +423,7 @@ async def scheduleclear(interaction: discord.Interaction, day: str):
     ensure_guild(gid)
 
     if day not in VALID_DAYS:
-        return await interaction.response.send_message(
-            "❌ Invalid day.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Invalid day.", ephemeral=True)
 
     guild_data = data[str(gid)]
     schedule_data: Dict[str, List[int]] = guild_data["schedule"]
@@ -517,14 +443,13 @@ async def scheduleclear(interaction: discord.Interaction, day: str):
     )
 
 
-# Backwards-compatible alias:
 @tree.command(name="removeschedule", description="(Alias) Clear all messages for a day")
 async def removeschedule(interaction: discord.Interaction, day: str):
     await scheduleclear.callback(interaction, day=day)  # type: ignore
 
 
 # ======================================================
-# VIEWSCHEDULE / VIEWSETTINGS (multi-message aware)
+# VIEWSCHEDULE / VIEWSETTINGS
 # ======================================================
 @tree.command(name="viewschedule", description="View weekly schedule summary")
 async def viewschedule(interaction: discord.Interaction):
@@ -559,18 +484,12 @@ async def viewchannel(interaction: discord.Interaction):
 
     guild = interaction.guild
     if guild is None:
-        return await interaction.response.send_message(
-            "❌ Cannot be used in DMs.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Cannot be used in DMs.", ephemeral=True)
 
     guild_data = data[str(gid)]
     channel_id = guild_data.get("post_channel")
     if channel_id is None:
-        return await interaction.response.send_message(
-            "❌ No auto-post channel set.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ No auto-post channel set.", ephemeral=True)
 
     channel = guild.get_channel(channel_id)
     if not isinstance(channel, discord.TextChannel):
@@ -592,14 +511,10 @@ async def viewsettings(interaction: discord.Interaction):
 
     guild = interaction.guild
     if guild is None:
-        return await interaction.response.send_message(
-            "❌ Cannot use in DMs.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Cannot use in DMs.", ephemeral=True)
 
     guild_data = data[str(gid)]
 
-    # channel
     channel_id = guild_data.get("post_channel")
     if channel_id:
         ch = guild.get_channel(channel_id)
@@ -607,7 +522,6 @@ async def viewsettings(interaction: discord.Interaction):
     else:
         channel_text = "Not set"
 
-    # schedule
     schedule_data: Dict[str, List[int]] = guild_data["schedule"]
     schedule_lines: List[str] = []
     if not schedule_data:
@@ -641,20 +555,14 @@ async def viewsettings(interaction: discord.Interaction):
 # CHANNEL CONFIGURATION
 # ======================================================
 @tree.command(name="setschedulechannel", description="Set channel for auto-posting")
-async def setschedulechannel(
-    interaction: discord.Interaction,
-    channel: discord.abc.GuildChannel
-):
+async def setschedulechannel(interaction: discord.Interaction, channel: discord.abc.GuildChannel):
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
 
     try:
         text_ch = safe_text_channel(channel)
     except ValueError:
-        return await interaction.response.send_message(
-            "❌ Select a normal text channel.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Select a normal text channel.", ephemeral=True)
 
     data[str(gid)]["post_channel"] = text_ch.id
     save_data(data)
@@ -673,10 +581,7 @@ async def deletechannel(interaction: discord.Interaction):
     data[str(gid)]["post_channel"] = None
     save_data(data)
 
-    await interaction.response.send_message(
-        "🗑 Auto-post channel removed.",
-        ephemeral=True
-    )
+    await interaction.response.send_message("🗑 Auto-post channel removed.", ephemeral=True)
 
 
 # ======================================================
@@ -686,10 +591,7 @@ async def deletechannel(interaction: discord.Interaction):
 async def clearall(interaction: discord.Interaction):
     member = safe_member(interaction)
     if not member.guild_permissions.administrator:
-        return await interaction.response.send_message(
-            "❌ Admin only.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Admin only.", ephemeral=True)
 
     gid = safe_guild_id(interaction)
     ensure_guild(gid)
@@ -716,10 +618,7 @@ async def postnow(interaction: discord.Interaction, message_id: int):
     guild_data = data[str(gid)]
     msg = guild_data["messages"].get(str(message_id))
     if not msg:
-        return await interaction.response.send_message(
-            "❌ Message not found.",
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ Message not found.", ephemeral=True)
 
     channel = interaction.channel
     if not isinstance(channel, discord.TextChannel):
@@ -731,10 +630,7 @@ async def postnow(interaction: discord.Interaction, message_id: int):
     for part in split_message(msg):
         await channel.send(part)
 
-    await interaction.response.send_message(
-        "✔ Message posted.",
-        ephemeral=True
-    )
+    await interaction.response.send_message("✔ Message posted.", ephemeral=True)
 
 
 # ======================================================
@@ -806,5 +702,6 @@ async def on_ready():
 # ======================================================
 # START BOT
 # ======================================================
-keep_alive()
-bot.run(load_token())
+if __name__ == "__main__":
+    bot.run(load_token())
+    
