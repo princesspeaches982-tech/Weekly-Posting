@@ -1,3 +1,6 @@
+import sys
+sys.modules['audioop'] = None
+
 import discord
 from discord.ext import tasks
 from discord import app_commands
